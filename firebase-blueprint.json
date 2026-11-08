@@ -1,0 +1,289 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with identifier, email, role, and referral info.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "userIdCode": { "type": "string", "maxLength": 20 },
+        "referralCode": { "type": "string", "maxLength": 20 },
+        "referredBy": { "type": "string", "maxLength": 20 },
+        "twoFactorEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "userIdCode"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "User wallet with balances strictly verified from transaction ledger.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "inrBalance": { "type": "number" },
+        "usdtBalance": { "type": "number" },
+        "usdtBep20Balance": { "type": "number" },
+        "levelIncome": { "type": "number" },
+        "ltdIncome": { "type": "number" },
+        "totalIncome": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "inrBalance", "usdtBalance", "usdtBep20Balance"]
+    },
+    "WalletLedger": {
+      "title": "WalletLedger",
+      "description": "Immutable append-only ledger entry tracking all balance changes.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "currency": { "type": "string", "enum": ["INR", "USDT_TRC20", "USDT_BEP20"] },
+        "type": { "type": "string", "enum": ["credit", "debit"] },
+        "amount": { "type": "number" },
+        "previousBalance": { "type": "number" },
+        "newBalance": { "type": "number" },
+        "transactionId": { "type": "string", "maxLength": 128 },
+        "source": { "type": "string", "maxLength": 100 },
+        "auditInfo": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "currency", "type", "amount", "previousBalance", "newBalance", "transactionId"]
+    },
+    "BankAccount": {
+      "title": "BankAccount",
+      "description": "User bank account details for INR payouts.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "accountHolderName": { "type": "string", "maxLength": 128 },
+        "bankName": { "type": "string", "maxLength": 128 },
+        "accountNumberMasked": { "type": "string", "maxLength": 32 },
+        "accountNumberEncrypted": { "type": "string", "maxLength": 256 },
+        "ifscCode": { "type": "string", "maxLength": 20 },
+        "accountType": { "type": "string", "enum": ["savings", "current"] },
+        "nickname": { "type": "string", "maxLength": 64 },
+        "isPrimary": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "accountHolderName", "bankName", "accountNumberMasked", "ifscCode"]
+    },
+    "PaymentRequest": {
+      "title": "PaymentRequest",
+      "description": "Deposit / payment request with proof of payment.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 256 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "enum": ["INR", "USDT_TRC20", "USDT_BEP20"] },
+        "paymentMethod": { "type": "string", "enum": ["UPI", "IMPS", "NEFT", "USDT_TRC20", "USDT_BEP20"] },
+        "referenceId": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["Pending", "Under Review", "Verified", "Rejected", "Expired"] },
+        "proofUrl": { "type": "string", "maxLength": 1000000 },
+        "proofFileName": { "type": "string", "maxLength": 256 },
+        "proofFileType": { "type": "string", "maxLength": 64 },
+        "proofFileSize": { "type": "number" },
+        "uploadedAt": { "type": "string", "format": "date-time" },
+        "verifiedAt": { "type": "string", "format": "date-time" },
+        "verifiedBy": { "type": "string", "maxLength": 128 },
+        "rejectionReason": { "type": "string", "maxLength": 512 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "currency", "paymentMethod", "referenceId", "status"]
+    },
+    "Deposit": {
+      "title": "Deposit",
+      "description": "USDT on-chain deposit record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "network": { "type": "string", "enum": ["TRC20", "BEP20"] },
+        "walletAddress": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "txHash": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Pending", "Confirmed", "Failed", "Expired"] },
+        "depositId": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "network", "walletAddress", "amount", "status", "depositId"]
+    },
+    "Transfer": {
+      "title": "Transfer",
+      "description": "USDT wallet transfer to an external address or user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "recipientAddress": { "type": "string", "maxLength": 128 },
+        "network": { "type": "string", "enum": ["TRC20", "BEP20"] },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "finalAmount": { "type": "number" },
+        "referenceId": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["Pending", "Processing", "Completed", "Failed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "recipientAddress", "network", "amount", "fee", "finalAmount", "referenceId", "status"]
+    },
+    "SellOrder": {
+      "title": "SellOrder",
+      "description": "Sell USDT for INR converted to wallet balance or bank account.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "usdtAmount": { "type": "number" },
+        "rate": { "type": "number" },
+        "inrAmount": { "type": "number" },
+        "fee": { "type": "number" },
+        "bankAccountId": { "type": "string", "maxLength": 64 },
+        "bankAccountMasked": { "type": "string", "maxLength": 64 },
+        "referenceId": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["Pending", "Completed", "Failed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "usdtAmount", "rate", "inrAmount", "fee", "referenceId", "status"]
+    },
+    "Withdrawal": {
+      "title": "Withdrawal",
+      "description": "INR bank withdrawal request.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 256 },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "finalAmount": { "type": "number" },
+        "bankAccountId": { "type": "string", "maxLength": 64 },
+        "bankAccountMasked": { "type": "string", "maxLength": 64 },
+        "referenceId": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["Pending", "Processing", "Completed", "Rejected"] },
+        "rejectionReason": { "type": "string", "maxLength": 512 },
+        "processedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "fee", "finalAmount", "bankAccountId", "bankAccountMasked", "referenceId", "status"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "All financial transactions log for history.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["Deposit", "Transfer", "Sell", "Withdrawal", "Bank Transfer", "Payment", "Refund"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 20 },
+        "fee": { "type": "number" },
+        "status": { "type": "string", "enum": ["Pending", "Processing", "Completed", "Failed", "Rejected"] },
+        "referenceId": { "type": "string", "maxLength": 64 },
+        "previousBalance": { "type": "number" },
+        "newBalance": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "amount", "currency", "status", "referenceId"]
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "Affiliate and referral tracking.",
+      "type": "object",
+      "properties": {
+        "referrerId": { "type": "string", "maxLength": 128 },
+        "referredUserId": { "type": "string", "maxLength": 128 },
+        "referredUserEmail": { "type": "string", "maxLength": 256 },
+        "level": { "type": "number" },
+        "commissionEarned": { "type": "number" },
+        "status": { "type": "string", "enum": ["Active", "Pending"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["referrerId", "referredUserId", "level", "commissionEarned", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System and security audit trails.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 128 },
+        "entityType": { "type": "string", "maxLength": 64 },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 1024 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "action", "entityType"]
+    },
+    "EmailNotification": {
+      "title": "EmailNotification",
+      "description": "Dispatched email notifications log.",
+      "type": "object",
+      "properties": {
+        "recipientEmail": { "type": "string", "maxLength": 256 },
+        "subject": { "type": "string", "maxLength": 256 },
+        "type": { "type": "string", "maxLength": 64 },
+        "payload": { "type": "string", "maxLength": 2048 },
+        "status": { "type": "string", "enum": ["Sent", "Delivered", "Queued"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientEmail", "subject", "type", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profiles."
+    },
+    "/wallets/{userId}": {
+      "schema": "Wallet",
+      "description": "Stores user wallet balances."
+    },
+    "/wallet_ledger/{ledgerId}": {
+      "schema": "WalletLedger",
+      "description": "Immutable ledger entries."
+    },
+    "/bank_accounts/{accountId}": {
+      "schema": "BankAccount",
+      "description": "User bank account details."
+    },
+    "/payments/{paymentId}": {
+      "schema": "PaymentRequest",
+      "description": "Payment requests and proof of deposits."
+    },
+    "/deposits/{depositId}": {
+      "schema": "Deposit",
+      "description": "Crypto deposit records."
+    },
+    "/transfers/{transferId}": {
+      "schema": "Transfer",
+      "description": "Crypto transfer records."
+    },
+    "/sell_orders/{orderId}": {
+      "schema": "SellOrder",
+      "description": "USDT sell orders."
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": "Withdrawal",
+      "description": "INR bank withdrawal orders."
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "User transaction history."
+    },
+    "/referrals/{referralId}": {
+      "schema": "Referral",
+      "description": "Referral link tracking."
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Audit trails."
+    },
+    "/email_notifications/{notificationId}": {
+      "schema": "EmailNotification",
+      "description": "Notifications log."
+    }
+  }
+}

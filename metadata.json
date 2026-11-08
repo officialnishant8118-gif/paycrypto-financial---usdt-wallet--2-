@@ -1,0 +1,6 @@
+{
+  "name": "PayCrypto Financial & USDT Wallet",
+  "description": "Production-ready, responsive financial and USDT multi-network wallet application featuring real-time balance tracking, ledger accounting, deposit/transfer/sell workflows, verified payments, and admin controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
