@@ -2,10 +2,13 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   User as FirebaseUser,
   GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithPopup,
+  signInWithEmailAndPassword,
   signOut as fbSignOut,
   onAuthStateChanged,
-  signInAnonymously,
+  updateProfile,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase.ts';
@@ -16,11 +19,15 @@ interface AuthContextType {
   currentUser: FirebaseUser | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  authError: string | null;
+  clearAuthError: () => void;
   isAdmin: boolean;
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInQuickAccess: (email?: string, name?: string, role?: UserRole) => Promise<void>;
   signOut: () => Promise<void>;
   toggleTwoFactor: () => Promise<boolean>;
 }
@@ -33,135 +40,171 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [activeRole, setActiveRole] = useState<UserRole>('user');
 
-  // Sync or create user in Firestore
-  const syncUserProfile = async (user: FirebaseUser, overrideEmail?: string, overrideName?: string, requestedRole?: UserRole) => {
-    const userRef = doc(db, 'users', user.uid);
-    try {
-      const snap = await getDoc(userRef);
-      const email = (overrideEmail || user.email || 'user@paycrypto.wallet').toLowerCase();
-      const isAdminEmail = ADMIN_EMAILS.includes(email) || requestedRole === 'admin';
-      const role: UserRole = isAdminEmail ? 'admin' : (requestedRole || 'user');
+  const getErrorMessage = (error: unknown) => {
+    if (!(error instanceof Error)) return 'Something went wrong. Please try again.';
+    const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+    const messages: Record<string, string> = {
+      'auth/email-already-in-use': 'An account already exists for this email. Please sign in instead.',
+      'auth/invalid-email': 'Enter a valid email address.',
+      'auth/invalid-credential': 'Email or password is incorrect.',
+      'auth/user-not-found': 'No account exists for this email. Please sign up first.',
+      'auth/wrong-password': 'Email or password is incorrect.',
+      'auth/weak-password': 'Choose a password with at least 6 characters.',
+      'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+      'auth/popup-closed-by-user': 'The Google sign-in window was closed before completion.',
+      'auth/popup-blocked': 'Your browser blocked the Google sign-in window. Allow popups and try again.',
+      'auth/unauthorized-domain': 'This domain is not enabled for sign-in in Firebase Authentication.',
+      'auth/operation-not-allowed': 'This sign-in method is not enabled in Firebase Authentication.',
+      'auth/network-request-failed': 'Network connection failed. Check your internet and try again.',
+    };
+    return messages[code] || error.message;
+  };
 
-      if (snap.exists()) {
-        const data = snap.data() as UserProfile;
-        // update role if designated
-        if (isAdminEmail && data.role !== 'admin') {
-          await updateDoc(userRef, { role: 'admin', updatedAt: new Date().toISOString() });
-          data.role = 'admin';
-        }
-        setUserProfile(data);
-        setActiveRole(data.role);
-      } else {
-        // Generate memorable 6-digit user ID like USR-829104
-        const randomNum = Math.floor(100000 + Math.random() * 900000);
-        const userIdCode = `USR-${randomNum}`;
-        const referralCode = `PAY${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-
-        const newProfile: UserProfile = {
-          id: user.uid,
-          uid: user.uid,
-          email,
-          displayName: overrideName || user.displayName || `Trader #${randomNum}`,
-          role,
-          userIdCode,
-          referralCode,
-          twoFactorEnabled: true,
-          createdAt: new Date().toISOString(),
-        };
-
-        await setDoc(userRef, newProfile);
-        setUserProfile(newProfile);
-        setActiveRole(role);
-
-        // Ensure wallet document exists with 0 balance
-        const walletRef = doc(db, 'wallets', user.uid);
-        const walletSnap = await getDoc(walletRef);
-        if (!walletSnap.exists()) {
-          await setDoc(walletRef, {
-            id: user.uid,
-            userId: user.uid,
-            inrBalance: 0,
-            usdtBalance: 0,
-            usdtBep20Balance: 0,
-            levelIncome: 0,
-            ltdIncome: 0,
-            totalIncome: 0,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-
-        // If user is admin, add to /admins/{uid} marker collection
-        if (role === 'admin') {
-          try {
-            await setDoc(doc(db, 'admins', user.uid), {
-              email,
-              grantedAt: new Date().toISOString(),
-            });
-          } catch {
-            // ignore
-          }
-        }
-
-        await logAuditEvent(user.uid, 'USER_REGISTERED', 'User', user.uid, `New user created with code ${userIdCode}`);
-      }
-    } catch (err) {
-      console.error('Error syncing user profile:', err);
+  const syncUserProfile = async (user: FirebaseUser) => {
+    if (user.isAnonymous || !user.email) {
+      throw new Error('Use an email account to access your wallet.');
     }
+
+    const userRef = doc(db, 'users', user.uid);
+    const snap = await getDoc(userRef);
+    const email = user.email.toLowerCase();
+    const role: UserRole = user.emailVerified && ADMIN_EMAILS.includes(email) ? 'admin' : 'user';
+    const now = new Date().toISOString();
+    let profile: UserProfile;
+
+    if (snap.exists()) {
+      const data = snap.data() as UserProfile;
+      profile = {
+        ...data,
+        id: user.uid,
+        uid: user.uid,
+        email,
+        displayName: user.displayName || data.displayName,
+        role,
+      };
+      if (data.role !== role || data.email !== email) {
+        await updateDoc(userRef, { role, email, updatedAt: now });
+      }
+    } else {
+      const randomNum = Math.floor(100000 + Math.random() * 900000);
+      profile = {
+        id: user.uid,
+        uid: user.uid,
+        email,
+        displayName: user.displayName || `Trader #${randomNum}`,
+        role,
+        userIdCode: `USR-${randomNum}`,
+        referralCode: `PAY${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+        twoFactorEnabled: true,
+        createdAt: now,
+      };
+      await setDoc(userRef, profile);
+      await logAuditEvent(user.uid, 'USER_REGISTERED', 'User', user.uid, `New user created with code ${profile.userIdCode}`);
+    }
+
+    const walletRef = doc(db, 'wallets', user.uid);
+    const walletSnap = await getDoc(walletRef);
+    if (!walletSnap.exists()) {
+      await setDoc(walletRef, {
+        id: user.uid,
+        userId: user.uid,
+        inrBalance: 0,
+        usdtBalance: 0,
+        usdtBep20Balance: 0,
+        levelIncome: 0,
+        ltdIncome: 0,
+        totalIncome: 0,
+        updatedAt: now,
+      });
+    }
+
+    setUserProfile(profile);
+    setActiveRole(role);
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      setCurrentUser(fbUser);
-      if (fbUser) {
-        await syncUserProfile(fbUser);
-      } else {
-        // Auto-initialize seamless session with persistent ID so wallet features work out of the box
+      setAuthError(null);
+      if (fbUser?.isAnonymous) {
+        setCurrentUser(null);
+        setUserProfile(null);
         try {
-          const cred = await signInAnonymously(auth);
-          await syncUserProfile(cred.user, 'officialnishant8118@gmail.com', 'Nishant (Verified)', 'admin');
-        } catch {
-          setUserProfile(null);
+          await fbSignOut(auth);
+        } catch (error) {
+          console.error('Unable to end an old anonymous session:', error);
+          setAuthError(getErrorMessage(error));
         }
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      setCurrentUser(fbUser);
+      try {
+        if (fbUser) {
+          await syncUserProfile(fbUser);
+        } else {
+          setUserProfile(null);
+          setActiveRole('user');
+        }
+      } catch (error) {
+        console.error('Unable to load the signed-in user profile:', error);
+        setUserProfile(null);
+        setAuthError(getErrorMessage(error));
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
-    setLoading(true);
+  const signInWithEmail = async (email: string, password: string) => {
+    setAuthError(null);
     try {
-      const provider = new GoogleAuthProvider();
-      const res = await signInWithPopup(auth, provider);
-      await syncUserProfile(res.user);
+      await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
     } catch (error) {
-      console.error('Google Sign-In failed:', error);
-      throw error;
-    } finally {
-      setLoading(false);
+      const message = getErrorMessage(error);
+      setAuthError(message);
+      throw new Error(message);
     }
   };
 
-  const signInQuickAccess = async (
-    customEmail = 'trader@paycrypto.com',
-    customName = 'Pro Trader',
-    role: UserRole = 'user'
-  ) => {
-    setLoading(true);
+  const signUpWithEmail = async (email: string, password: string, displayName: string) => {
+    setAuthError(null);
     try {
-      let user = auth.currentUser;
-      if (!user) {
-        const cred = await signInAnonymously(auth);
-        user = cred.user;
-      }
-      await syncUserProfile(user, customEmail, customName, role);
-    } catch (err) {
-      console.error('Quick access login failed:', err);
-    } finally {
-      setLoading(false);
+      const credential = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      await updateProfile(credential.user, { displayName: displayName.trim() });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setAuthError(message);
+      throw new Error(message);
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    setAuthError(null);
+    try {
+      await sendPasswordResetEmail(auth, email.trim().toLowerCase());
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setAuthError(message);
+      throw new Error(message);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setAuthError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error('Google Sign-In failed:', error);
+      const message = getErrorMessage(error);
+      setAuthError(message);
+      throw new Error(message);
     }
   };
 
@@ -170,8 +213,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await fbSignOut(auth);
       setUserProfile(null);
       setCurrentUser(null);
+      setAuthError(null);
     } catch (error) {
       console.error('Sign-out error:', error);
+      setAuthError(getErrorMessage(error));
+      throw error;
     }
   };
 
@@ -191,7 +237,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newState;
   };
 
-  const isAdmin = userProfile?.role === 'admin' || ADMIN_EMAILS.includes(userProfile?.email || '');
+  const isAdmin = !!currentUser?.emailVerified &&
+    ADMIN_EMAILS.includes(currentUser.email?.toLowerCase() || '');
 
   return (
     <AuthContext.Provider
@@ -199,11 +246,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         userProfile,
         loading,
+        authError,
+        clearAuthError: () => setAuthError(null),
         isAdmin,
         activeRole,
         setActiveRole,
+        signInWithEmail,
+        signUpWithEmail,
+        resetPassword,
         signInWithGoogle,
-        signInQuickAccess,
         signOut,
         toggleTwoFactor,
       }}

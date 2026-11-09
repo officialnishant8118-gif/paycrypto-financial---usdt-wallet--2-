@@ -16,12 +16,13 @@ import { ReferralScreen } from './components/ReferralScreen.tsx';
 import { IncomeScreen } from './components/IncomeScreen.tsx';
 import { AdminDashboard } from './components/AdminDashboard.tsx';
 import { MobileMoreDrawer } from './components/MobileMoreDrawer.tsx';
+import { AuthScreen } from './components/AuthScreen.tsx';
 import { RefreshCw } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
-  const { loading: authLoading } = useAuth();
+  const { currentUser, userProfile, loading: authLoading } = useAuth();
   const { loading: walletLoading } = useWallet();
 
   if (authLoading || walletLoading) {
@@ -34,6 +35,10 @@ const MainLayout: React.FC = () => {
         <p className="text-xs text-slate-400 mt-1">Connecting to real-time financial ledger</p>
       </div>
     );
+  }
+
+  if (!currentUser || !userProfile) {
+    return <AuthScreen />;
   }
 
   const renderContent = () => {

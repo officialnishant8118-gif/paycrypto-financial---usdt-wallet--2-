@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ShieldAlert,
   ArrowRightLeft,
-  Key,
   TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
@@ -23,7 +22,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => {
-  const { userProfile, isAdmin, activeRole, setActiveRole, signOut, signInQuickAccess, toggleTwoFactor } = useAuth();
+  const { userProfile, isAdmin, activeRole, setActiveRole, signOut, toggleTwoFactor } = useAuth();
   const { wallet, conversionRateUsdtInr, emailLogs } = useWallet();
 
   const [copiedId, setCopiedId] = useState(false);
@@ -244,32 +243,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab }) => 
                       </span>
                     </button>
                   )}
-
-                  <div className="pt-2 border-t border-slate-100 mt-1">
-                    <p className="text-[10px] uppercase font-bold text-slate-400 px-2 mb-1">Testing Accounts</p>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        signInQuickAccess('officialnishant8118@gmail.com', 'Nishant (Admin)', 'admin');
-                        setProfileDropdownOpen(false);
-                      }}
-                      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-50 text-[11px] text-slate-700 flex items-center justify-between"
-                    >
-                      <span>Nishant (Admin)</span>
-                      <span className="text-[10px] text-purple-700 font-bold">Admin</span>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        signInQuickAccess('user.rahul@example.com', 'Rahul Kumar', 'user');
-                        setProfileDropdownOpen(false);
-                      }}
-                      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-50 text-[11px] text-slate-700 flex items-center justify-between"
-                    >
-                      <span>Rahul Kumar (User)</span>
-                      <span className="text-[10px] text-cyan-700 font-bold">Trader</span>
-                    </button>
-                  </div>
 
                   <div className="pt-2 border-t border-slate-100 mt-1">
                     <button
