@@ -122,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
             <span className="text-[10px] font-mono text-cyan-300">P2P</span>
           </div>
           <p className="text-base font-extrabold text-white font-mono tabular-nums">
-            1 USDT = ₹113.50
+            1 USDT = ₹130.50
           </p>
           <p className="text-[10px] text-slate-400 mt-1">
             Zero deposit fees. Instant IMPS settlement.

@@ -99,7 +99,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [allUsersList, setAllUsersList] = useState<{ uid: string; email: string; displayName: string; role: string; userIdCode: string }[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const conversionRateUsdtInr = 113.50; // 1 USDT = ₹91.50 standard market rate
+  const conversionRateUsdtInr = 130.50; // 1 USDT = ₹130.50 standard market rate
 
   // 1. Real-time Wallet listener for the active user
   useEffect(() => {
